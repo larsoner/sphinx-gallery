@@ -23,7 +23,8 @@ from sphinx.util.docutils import docutils_namespace
 
 from sphinx_gallery import sphinx_compatibility
 from sphinx_gallery.gen_gallery import (check_duplicate_filenames,
-                                        collect_gallery_files)
+                                        collect_gallery_files, parse_config,
+                                        _complete_gallery_conf)
 
 
 @pytest.fixture
@@ -368,7 +369,25 @@ sphinx_gallery_conf = {
     'first_notebook_cell': 2,
 }""")
 def test_first_notebook_cell_config(sphinx_app_wrapper):
-    from sphinx_gallery.gen_gallery import parse_config
     # First cell must be str
     with pytest.raises(ValueError):
         parse_config(sphinx_app_wrapper.create_sphinx_app())
+
+
+def test_degenerate_backreferenc_headings():
+    key = 'backreference_headings'
+    gc = {key: dict()}
+    kwargs = dict(src_dir='', plot_gallery=True, abort_on_example_error=False)
+    _complete_gallery_conf(gc, **kwargs)  # smoke test
+    gc[key] = 1.
+    with pytest.raises(TypeError, match='%s must be a dict' % (key,)):
+        _complete_gallery_conf(gc, **kwargs)
+    gc[key] = dict(foo='^')
+    with pytest.raises(KeyError, match='Unknown key.*must be one of'):
+        _complete_gallery_conf(gc, **kwargs)
+    gc[key] = dict(method=1.)
+    with pytest.raises(TypeError, match='%s.*must be a string' % (key,)):
+        _complete_gallery_conf(gc, **kwargs)
+    gc[key] = dict(method='foo')
+    with pytest.raises(ValueError, match='%s.*must be "rubric" or.*' % (key,)):
+        _complete_gallery_conf(gc, **kwargs)

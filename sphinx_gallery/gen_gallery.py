@@ -64,6 +64,7 @@ DEFAULT_GALLERY_CONF = {
     'show_memory': False,
     'junit': '',
     'log_level': {'backreference_missing': 'warning'},
+    'backreferences_headings': {},
 }
 
 logger = sphinx_compatibility.getLogger('sphinx-gallery')
@@ -118,6 +119,24 @@ def _complete_gallery_conf(sphinx_gallery_conf, src_dir, plot_gallery,
         logger.warning(
             backreferences_warning,
             type=DeprecationWarning)
+    gallery_conf['backreference_types'] = dict()  # our own accounting
+    bh = gallery_conf['backreference_headings']
+    if not isinstance(bh, dict):
+        raise ValueError('backreference_headings must be dict, got %s'
+                         % (type(bh),))
+    valid_keys = ('module', 'class', 'exception', 'function', 'method',
+                  'attribute', 'unknown')
+    for key, value in bh.items():
+        if key not in valid_keys:
+            raise KeyError('Unknown key %r, must be one of:\n%s'
+                           % (key, valid_keys))
+        this = 'backreference_headings[%r]' % (key,)
+        if not isinstance(value, str):
+            raise TypeError('%s = %r must be a string, got %s'
+                            % (this, value, type(value)))
+        if value != 'rubric' and len(value) != 1:
+            raise ValueError('%s = %r must be "rubric" or a one-element str'
+                             % (this, value))
 
     # deal with show_memory
     if gallery_conf['show_memory']:

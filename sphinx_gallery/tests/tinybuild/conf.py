@@ -47,6 +47,7 @@ sphinx_gallery_conf = {
     'expected_failing_examples': ['examples/plot_future_imports_broken.py'],
     'show_memory': True,
     'junit': op.join('sphinx-gallery', 'junit-results.xml'),
+    'backreference_headings': {'class': 'rubric'},
 }
 nitpicky = True
 highlight_language = 'python3'

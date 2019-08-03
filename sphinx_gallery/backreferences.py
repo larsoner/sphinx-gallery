@@ -165,9 +165,9 @@ THUMBNAIL_TEMPLATE = """
 
 .. only:: html
 
-    .. figure:: /{thumbnail}
+ .. figure:: /{thumbnail}
 
-        :ref:`sphx_glr_{ref_name}`
+    :ref:`sphx_glr_{ref_name}`
 
 .. raw:: html
 
@@ -177,7 +177,7 @@ THUMBNAIL_TEMPLATE = """
 BACKREF_THUMBNAIL_TEMPLATE = THUMBNAIL_TEMPLATE + """
 .. only:: not html
 
-    * :ref:`sphx_glr_{ref_name}`
+ * :ref:`sphx_glr_{ref_name}`
 """
 
 
@@ -221,12 +221,22 @@ def write_backreferences(seen_backrefs, gallery_conf,
         with codecs.open(include_path, 'a' if seen else 'w',
                          encoding='utf-8') as ex_file:
             if not seen:
-                heading = '\n\nExamples using ``%s``' % backref
-                ex_file.write(heading + '\n')
-                ex_file.write('^' * len(heading) + '\n')
+                what = gallery_conf['backreference_types'].get(
+                    backref, 'unknown')
+                kind = gallery_conf['backreference_headings'].get(what, '^')
+                ex_file.write(_backref_header(backref, kind))
             ex_file.write(_thumbnail_div(target_dir, gallery_conf['src_dir'],
                                          fname, snippet, is_backref=True))
             seen_backrefs.add(backref)
+
+
+def _backref_header(backref, kind='^'):
+    # Get the backref heading type the user requested
+    heading = 'Examples using ``%s``' % backref
+    if kind == 'rubric':
+        return '\n\n.. rubric:: ' + heading + '\n'
+    else:
+        return '\n\n' + heading + '\n' + kind * len(heading) + '\n'
 
 
 def finalize_backreferences(seen_backrefs, gallery_conf):

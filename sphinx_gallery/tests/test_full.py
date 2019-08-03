@@ -208,7 +208,7 @@ def test_embed_links_and_styles(sphinx_app):
 
 def test_backreferences(sphinx_app):
     """Test backreferences."""
-    out_dir = sphinx_app.outdir
+    out_dir, src_dir = sphinx_app.outdir, sphinx_app.srcdir
     mod_file = op.join(out_dir, 'gen_modules', 'sphinx_gallery.sorting.html')
     with codecs.open(mod_file, 'r', 'utf-8') as fid:
         lines = fid.read()
@@ -222,6 +222,22 @@ def test_backreferences(sphinx_app):
         lines = fid.read()
     assert 'identify_names' in lines  # in API doc
     assert 'plot_future_imports.html' in lines  # backref via doc block
+    # check our backref file existence and formatting
+    backref_dir = op.join(src_dir, 'gen_modules', 'backreferences')
+    assert op.isdir(backref_dir)
+    class_file = op.join(
+        backref_dir, 'sphinx_gallery.sorting.FileNameSortKey.examples')
+    with open(class_file, 'r') as fid:
+        class_br = fid.read()
+    assert '.. rubric::' in class_br
+    assert '^^^^^^^' not in class_br
+    function_file = op.join(
+        backref_dir, 'sphinx_gallery.backreferences.identify_names.examples')
+    with open(function_file, 'r') as fid:
+        function_br = fid.read()
+    assert 'rubric' not in function_br
+    assert '^^^^^^^^^^' in function_br
+
 
 
 def _assert_mtimes(list_orig, list_new, different=(), ignore=()):
