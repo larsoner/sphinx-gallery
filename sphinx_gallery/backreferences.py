@@ -73,20 +73,16 @@ class NameFinder(ast.NodeVisitor):
                 local_name = '.'.join(local_name_split[:split_level+1])
                 remainder = name[len(local_name):]
                 class_attr = False
-                if local_name in self.imported_names:
-                    # Join import path to relative path
-                    full_name = self.imported_names[local_name] + remainder
-                    if local_name in self.global_variables:
+                if local_name in self.global_variables:
+                    if local_name in self.imported_names:
+                        full_name = self.imported_names[local_name] + remainder
                         obj = self.global_variables[local_name]
                         if remainder:
                             for level in remainder[1:].split('.'):
                                 obj = getattr(obj, level)
                         is_class = inspect.isclass(obj)
-                    else:
-                        is_class = False
-                    yield name, full_name, class_attr, is_class
-                    break
-                elif local_name in self.global_variables:
+                        yield name, full_name, class_attr, is_class
+                        break
                     obj = self.global_variables[local_name]
                     is_class = inspect.isclass(obj)
                     if remainder and remainder[0] == '.':  # maybe meth or attr
@@ -111,6 +107,12 @@ class NameFinder(ast.NodeVisitor):
                             full_name = '.'.join(
                                 module[:depth] + [class_name] + method)
                             yield name, full_name, class_attr, is_class
+                elif local_name in self.imported_names:
+                    # Join import path to relative path
+                    full_name = self.imported_names[local_name] + remainder
+                    is_class = False
+                    yield name, full_name, class_attr, is_class
+                    break
 
 
 def _from_import(a, b):
