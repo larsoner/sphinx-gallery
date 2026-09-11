@@ -56,7 +56,7 @@ file, inside a ``sphinx_gallery_conf`` dictionary.
 
 **Cross-referencing**
 
-- ``reference_url``, ``prefer_full_module`` (:ref:`link_to_documentation`)
+- ``prefer_full_module`` (:ref:`link_to_documentation`)
 - ``backreferences_dir``, ``doc_module``, ``exclude_implicit_doc``,
   and ``inspect_global_variables`` (:ref:`minigalleries_to_examples`)
 - ``minigallery_sort_order`` (:ref:`minigallery_order`)
@@ -172,6 +172,9 @@ For example, to remove the specific Matplotlib agg warning, you can add::
 to your ``conf.py`` file.
 
 Note that the above Matplotlib warning is removed by default.
+
+This section is about warnings raised by your example code. To silence warnings
+raised by Sphinx-Gallery itself, see :ref:`suppressing_warnings`.
 
 .. _importing_callables:
 
@@ -653,23 +656,18 @@ Such code snippets within the gallery appear like this:
     hyperlinks to external modules will be added to text blocks, similar to a normal
     Sphinx reST documentation file.
 
-If you use the Sphinx extension :mod:`sphinx.ext.intersphinx`, entries in
-the ``intersphinx`` inventory will automatically be used for linking inside
-code blocks. If you wish to add or over-ride any ``intersphinx`` module, you can
-use the Sphinx-Gallery ``reference_url`` configuration.
-``reference_url`` accepts a dictionary where the key is the module name string and
-value is the URL to the module's documentation directory page, containing
-``searchindex.js``, such as ``'matplotlib': 'https://matplotlib.org'``.
+This works automatically, with no configuration needed:
 
-To link the local module, use ``None`` as the value, as shown below::
+- Objects documented in the project being built are resolved through Sphinx's
+  own cross-reference machinery (the Python domain), for any HTML builder.
+- Objects from external packages are resolved through the
+  :mod:`sphinx.ext.intersphinx` inventories, so link any external package by
+  adding it to ``intersphinx_mapping`` in your ``conf.py``.
 
-    sphinx_gallery_conf = {
-        ...
-        'reference_url': {
-             # The module you locally document uses None
-            'sphinx_gallery': None,
-        }
-    }
+.. note:: The ``reference_url`` option is deprecated and ignored. Links to the
+          project being documented (previously ``'mymodule': None`` entries)
+          are now automatic, and external entries should be replaced by
+          ``intersphinx_mapping`` entries in ``conf.py``.
 
 To add links to code blocks in plain reST example files inside galleries,
 see :ref:`plain_rst`.
@@ -869,7 +867,10 @@ Each .rst file will contain a reduced version of the
 gallery, containing examples where that "object" that is used.
 '<object>.examples' files will be generated for all objects to prevent inclusion
 errors. Empty '<object>.examples' files are created for objects not used in any
-example.
+example. Characters that cannot appear in a filename (``<>:"/\|?*``) are replaced
+with an underscore, so that a name picked up from markup that carries an
+intersphinx inventory prefix (``:obj:`inventory:package.object```) still yields a
+usable filename on every platform.
 
 .. _exclude_implicit_doc:
 
@@ -1372,6 +1373,56 @@ The log level can be set with::
 
 The only valid key currently is ``backreference_missing``.
 The valid values are ``'debug'``, ``'info'``, ``'warning'``, and ``'error'``.
+
+
+.. _suppressing_warnings:
+
+Suppressing Sphinx-Gallery warnings
+===================================
+
+Every warning Sphinx-Gallery emits is tagged with the warning type
+``sphinx_gallery`` and a subtype naming the kind of problem, so Sphinx's
+:confval:`sphinx:suppress_warnings` can silence them by category. This is most
+useful when building with ``-W``, where an unwanted warning otherwise fails the
+whole build. For example, to keep building when an example file name is
+duplicated across galleries::
+
+    suppress_warnings = ['sphinx_gallery.duplicate_filename']
+
+Giving the type on its own silences all Sphinx-Gallery warnings::
+
+    suppress_warnings = ['sphinx_gallery']
+
+The subtypes, and what each one warns about, are:
+
+``backreference_missing``
+    A backreference file that was not written, usually because the filesystem
+    is not case sensitive (see :ref:`log_level`).
+
+``config``
+    A configuration value that could not be honoured, and was ignored or
+    overridden.
+
+``dependency``
+    An optional dependency that is not installed, such as ``optipng``,
+    ``pypandoc`` or ``memory_profiler``.
+
+``duplicate_filename``
+    Example files sharing a name across gallery directories, which breaks some
+    links.
+
+``example_error``
+    An example that failed to execute (see :ref:`warning_on_error`).
+
+``file_conf``
+    An invalid ``# sphinx_gallery_*`` setting in an example file.
+
+``space_in_filename``
+    Example file names containing spaces, which breaks some links.
+
+``thumbnail``
+    A ``sphinx_gallery_thumbnail_path`` that does not exist (see
+    :ref:`providing_thumbnail`).
 
 
 .. _disable_all_scripts_download:

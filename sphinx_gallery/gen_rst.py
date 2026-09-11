@@ -66,6 +66,7 @@ from .scrapers import (
 from .typing import GalleryConfig, Parser, PathLikeStr
 from .utils import (
     _W_KW,
+    WARNING_TYPE,
     _collect_gallery_files,
     _combine_backreferences,
     _format_toctree,
@@ -321,9 +322,13 @@ def _regroup(match: re.Match[str]) -> str:
 
 def _sanitize_rst(string: str) -> str:
     """Use regex to remove at least some sphinx directives."""
-    # :class:`a.b.c <thing here>`, :ref:`abc <thing here>` --> thing here
-    p, e = r"(\s|^):[^:\s]+:`", r"`(\W|$)"
-    string = re.sub(p + r"\S+\s*<([^>`]+)>" + e, r"\1\2\3", string)
+    # :class:`title <a.b.c>`, :ref:`title <thing here>` --> title
+    # Sphinx renders the explicit title, not the target, so keep the title.
+    # The role name is `(?:[^:\s`]+:)+` rather than a single segment so that a
+    # domain-qualified role (:py:class:, :std:doc:) is consumed whole -- matching
+    # from its inner colon would strand the ":py" as literal text (gh-1644).
+    p, e = r"(\s|^):(?:[^:\s`]+:)+`", r"`(\W|$)"
+    string = re.sub(p + r"([^`<>]+?)\s*<[^>`]+>" + e, r"\1\2\3", string)
     # :class:`~a.b.c` --> c
     string = re.sub(p + r"~([^`]+)" + e, _regroup, string)
     # :class:`a.b.c` --> a.b.c
@@ -347,7 +352,7 @@ def _sanitize_rst(string: str) -> str:
     string = re.sub(r"`([^`<>]+) <[^`<>]+>`\_\_?", r"\1", string)
 
     # :anchor:`the term` --> the term
-    string = re.sub(r":[a-z]+:`([^`<>]+)( <[^`<>]+>)?`", r"\1", string)
+    string = re.sub(r":(?:[a-z]+:)+`([^`<>]+)( <[^`<>]+>)?`", r"\1", string)
 
     # r'\\dfrac' --> r'\dfrac'
     string = string.replace("\\\\", "\\")
@@ -460,6 +465,8 @@ def save_thumbnail(
             "using default thumbnail.",
             image_path,
             src_file,
+            type=WARNING_TYPE,
+            subtype="thumbnail",
         )
 
     base_image_name = src_file.stem
@@ -604,6 +611,8 @@ def _split_parallel(
                 "sphinx_gallery_parallel setting is not a boolean, got %r in file %s",
                 run_parallel,
                 fname,
+                type=WARNING_TYPE,
+                subtype="file_conf",
             )
             run_parallel = True
         (parallel_listdir if run_parallel else serial_listdir).append(fname)
@@ -881,6 +890,8 @@ def handle_exception(
             f"\n{bold(red('%s'))} unexpectedly failed to execute correctly:\n\n%s",
             src_file_rel,
             red(indent(formatted_exception, "    ")),
+            type=WARNING_TYPE,
+            subtype="example_error",
         )
 
     except_rst = codestr2rst(formatted_exception, lang="pytb")
@@ -2045,7 +2056,9 @@ def _get_call_memory_and_base(
             if update:
                 logger.warning(
                     f"{gallery_conf['show_memory']=} disabled due to "
-                    f"{gallery_conf['parallel']=}."
+                    f"{gallery_conf['parallel']=}.",
+                    type=WARNING_TYPE,
+                    subtype="config",
                 )
                 gallery_conf["show_memory"] = False
         else:
@@ -2079,7 +2092,9 @@ def _get_memprof_call_memory() -> (
         from memory_profiler import memory_usage  # noqa
     except ImportError:
         logger.warning(
-            "Please install 'memory_profiler' to enable peak memory measurements."
+            "Please install 'memory_profiler' to enable peak memory measurements.",
+            type=WARNING_TYPE,
+            subtype="dependency",
         )
         return None
     else:

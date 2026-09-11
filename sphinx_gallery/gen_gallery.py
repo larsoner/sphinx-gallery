@@ -26,9 +26,13 @@ from sphinx.util.console import blue, bold, purple, red
 
 from . import __version__ as _sg_version
 from . import glr_path_static
-from .backreferences import Backreference, _finalize_backreferences
+from ._doctree_links import setup_doctree_links
+from .backreferences import (
+    Backreference,
+    _finalize_backreferences,
+    _sanitize_backref,
+)
 from .directives import ImageSg, MiniGallery, imagesg_addnode
-from .docs_resolv import embed_code_links
 from .downloads import generate_zipfiles
 from .gen_rst import (
     SPHX_GLR_SIG,
@@ -52,6 +56,7 @@ from .sorting import ExplicitOrder
 from .typing import GalleryConfig, PathLikeStr
 from .utils import (
     _W_KW,
+    WARNING_TYPE,
     _collect_gallery_files,
     _combine_backreferences,
     _format_toctree,
@@ -100,7 +105,7 @@ DEFAULT_GALLERY_CONF = {
     "backreferences_dir": None,
     "doc_module": (),
     "exclude_implicit_doc": set(),
-    "reference_url": {},
+    "reference_url": {},  # deprecated, ignored
     "capture_repr": ("_repr_html_", "__repr__"),
     "ignore_repr_types": r"",
     # 'plot_gallery' should accept strings that evaluate to a bool, to allow
@@ -292,6 +297,8 @@ def _check_compress_images(gallery_conf: GalleryConfig) -> None:
         logger.warning(
             "optipng binaries not found, PNG %s will not be optimized",
             " and ".join(compress_images),
+            type=WARNING_TYPE,
+            subtype="dependency",
         )
         compress_images = ()
     gallery_conf["compress_images"] = compress_images
@@ -345,7 +352,9 @@ def _check_pypandoc_config(gallery_conf: GalleryConfig) -> None:
     if isinstance(gallery_conf["pypandoc"], dict) and has_pypandoc is None:
         logger.warning(
             "'pypandoc' not available. Using Sphinx-Gallery to "
-            "convert rst text blocks to markdown for .ipynb files."
+            "convert rst text blocks to markdown for .ipynb files.",
+            type=WARNING_TYPE,
+            subtype="dependency",
         )
         gallery_conf["pypandoc"] = False
     elif isinstance(gallery_conf["pypandoc"], dict):
@@ -497,6 +506,16 @@ def _fill_gallery_conf_defaults(
     if isinstance(backref, pathlib.Path):
         gallery_conf["backreferences_dir"] = str(backref)
 
+    if gallery_conf["reference_url"]:
+        # info rather than warning: the option is now a harmless no-op, and
+        # projects building with -W should not break just by upgrading
+        logger.info(
+            "The 'reference_url' option is deprecated and ignored: code links "
+            "are now resolved from the documentation being built and from "
+            "intersphinx inventories. For external packages, add entries to "
+            "intersphinx_mapping instead."
+        )
+
     # binder
     gallery_conf["binder"] = check_binder_conf(gallery_conf["binder"])
 
@@ -610,7 +629,9 @@ def _prepare_sphx_glr_dirs(
     if len(examples_dirs) != len(gallery_dirs):
         logger.warning(
             "'examples_dirs' and 'gallery_dirs' are of different lengths. "
-            "Surplus entries will be ignored."
+            "Surplus entries will be ignored.",
+            type=WARNING_TYPE,
+            subtype="config",
         )
 
     if bool(gallery_conf["backreferences_dir"]):
@@ -772,8 +793,10 @@ def generate_gallery_rst(app: Sphinx) -> None:
     src_root = Path(app.builder.srcdir)
     workdirs = _prepare_sphx_glr_dirs(gallery_conf, src_root)
 
-    # Check for duplicate filenames to make sure linking works as expected
-    examples_dirs = [ex_dir for ex_dir, _ in workdirs]
+    # Check for duplicate filenames to make sure linking works as expected.
+    # `examples_dirs` is relative to `src_root`, and resolving it against the cwd
+    # instead would silently collect nothing.
+    examples_dirs = [src_root / ex_dir for ex_dir, _ in workdirs]
     _collect_gallery_files(examples_dirs, gallery_conf, check_filenames=True)
 
     backrefs_all: dict[str, list[Backreference]] = {}
@@ -1532,10 +1555,12 @@ def touch_empty_backreferences(
     if not bool(app.config.sphinx_gallery_conf["backreferences_dir"]):
         return
 
+    # a dotted Python name needs no sanitizing, but keep the name -> filename
+    # mapping in one place so this matches what `_write_backreferences` produced
     examples_path = (
         Path(app.srcdir)
         / app.config.sphinx_gallery_conf["backreferences_dir"]
-        / f"{name}.examples"
+        / f"{_sanitize_backref(name)}.examples"
     )
 
     if not examples_path.exists():
@@ -1656,7 +1681,7 @@ def summarize_failing_examples(app: Sphinx, exception: Exception | None) -> None
             )
         )
         if gallery_conf["only_warn_on_example_error"]:
-            logger.warning(fail_message)
+            logger.warning(fail_message, type=WARNING_TYPE, subtype="example_error")
         else:
             raise ExtensionError(fail_message)
 
@@ -1821,9 +1846,10 @@ def setup(app: Sphinx) -> dict[str, Any]:
     app.connect("build-finished", create_jupyterlite_contents)
 
     app.connect("build-finished", summarize_failing_examples)
-    app.connect("build-finished", embed_code_links)
 
     app.connect("html-page-context", setup_template_link_getters)
+
+    setup_doctree_links(app)
 
     app.add_js_file("sg-tags.js")
 
